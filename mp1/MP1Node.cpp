@@ -17,7 +17,7 @@
  * is necessary for your logic to work
  */
 MP1Node::MP1Node(Member *member, Params *params, EmulNet *emul, Log *log, Address *address) {
-	for( int i = 0; i < 6; i++ ) {
+	for( int i = 0; i < NULLADDR_LEN; i++ ) {
 		NULLADDR[i] = 0;
 	}
 	this->memberNode = member;

@@ -9,19 +9,19 @@
 #!/bin/sh
 
 function contains () {
-  	local e
-  	for e in "${@:2}"
+  	local e;
+  	for e in "${@:2}";
 	do 
 		if [ "$e" == "$1" ]; then 
-			echo 1
+			echo 1;
 			return 1;
 		fi
 	done
-  	echo 0
+  	echo 0;
 }
 
-verbose=$(contains "-v" "$@")
-grade=0
+verbose=$(contains "-v" "$@");
+grade=0;
 
 echo "============================================"
 echo "Grading Started"
@@ -29,9 +29,9 @@ echo "============================================"
 echo "Single Failure Scenario"
 echo "============================"
 if [ $verbose -eq 0 ]; then
-	make clean > /dev/null
-	make > /dev/null
-	./Application testcases/singlefailure.conf > /dev/null
+	make clean > /dev/null;
+	make > /dev/null;
+	./Application testcases/singlefailure.conf > /dev/null;
 else
 	make clean
 	make

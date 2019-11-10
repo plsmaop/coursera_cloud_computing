@@ -20,6 +20,7 @@
  */
 #define TREMOVE 20
 #define TFAIL 5
+#define NULLADDR_LEN 6
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -54,7 +55,7 @@ private:
 	Log *log;
 	Params *par;
 	Member *memberNode;
-	char NULLADDR[6];
+	char NULLADDR[NULLADDR_LEN];
 
 public:
 	MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
