@@ -42,6 +42,8 @@ enum MsgTypes{
  */
 typedef struct MessageHdr {
 	enum MsgTypes msgType;
+	Address addr;
+	long heartbeat;
 }MessageHdr;
 
 /**
@@ -77,6 +79,8 @@ public:
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
+
+	void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
 };
 
 #endif /* _MP1NODE_H_ */

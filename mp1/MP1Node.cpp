@@ -118,7 +118,6 @@ int MP1Node::initThisNode(Address *joinaddr) {
  * DESCRIPTION: Join the distributed system
  */
 int MP1Node::introduceSelfToGroup(Address *joinaddr) {
-	MessageHdr *msg;
 #ifdef DEBUGLOG
     static char s[1024];
 #endif
@@ -131,13 +130,12 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
         memberNode->inGroup = true;
     }
     else {
-        size_t msgsize = sizeof(MessageHdr) + sizeof(joinaddr->addr) + sizeof(long) + 1;
-        msg = (MessageHdr *) malloc(msgsize * sizeof(char));
+        MessageHdr *msg = new MessageHdr();
 
         // create JOINREQ message: format of data is {struct Address myaddr}
         msg->msgType = JOINREQ;
-        memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
-        memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr), &memberNode->heartbeat, sizeof(long));
+        memcpy(&msg->addr, &memberNode->addr, sizeof(Address));
+        memcpy(&msg->heartbeat, &memberNode->heartbeat, sizeof(long));
 
 #ifdef DEBUGLOG
         sprintf(s, "Trying to join...");
@@ -145,9 +143,9 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
 #endif
 
         // send JOINREQ message to introducer member
-        emulNet->ENsend(&memberNode->addr, joinaddr, (char *)msg, msgsize);
+        emulNet->ENsend(&memberNode->addr, joinaddr, (char *)msg, sizeof(MessageHdr));
 
-        free(msg);
+        delete msg;
     }
 
     return 1;
@@ -163,6 +161,11 @@ int MP1Node::finishUpThisNode(){
    /*
     * Your code goes here
     */
+    emulNet = NULL;
+	log = NULL;
+	par = NULL;
+
+    delete memberNode;
 }
 
 /**
@@ -214,10 +217,30 @@ void MP1Node::checkMessages() {
  *
  * DESCRIPTION: Message handler for different message types
  */
-bool MP1Node::recvCallBack(void *env, char *data, int size ) {
+bool MP1Node::recvCallBack( void *env, char *data, int size ) {
 	/*
 	 * Your code goes here
 	 */
+    MessageHdr *msg = (MessageHdr*)data;
+    Member *m = (Member*)env;
+
+    switch (msg->msgType) {
+        case JOINREQ:
+            break;
+
+        case JOINREP:
+            // node has joined the group
+            m->inGroup = true;
+
+            handleRecvJoinRep(m, msg, size);
+            break;
+
+        default:
+            return false;
+    }
+
+    delete msg;
+    return true;
 }
 
 /**
@@ -234,6 +257,15 @@ void MP1Node::nodeLoopOps() {
 	 */
 
     return;
+}
+
+/**
+ * FUNCTION NAME: handleRecvJoinRep
+ *
+ * DESCRIPTION: handle function for Receiving Join Response
+ */
+void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
+
 }
 
 /**
