@@ -81,6 +81,11 @@ public:
 	virtual ~MP1Node();
 
 	void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
+
+private:
+	// util func
+	int getIdFromAddr(Address *addr);
+	int getPortFromAddr(Address *addr);
 };
 
 #endif /* _MP1NODE_H_ */

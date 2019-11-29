@@ -96,8 +96,8 @@ int MP1Node::initThisNode(Address *joinaddr) {
 	/*
 	 * This function is partially implemented and may require changes
 	 */
-	int id = *(int*)(&memberNode->addr.addr);
-	int port = *(short*)(&memberNode->addr.addr[4]);
+	int id = getIdFromAddr(&memberNode->addr);
+	int port = getPortFromAddr(&memberNode->addr);
 
 	memberNode->bFailed = false;
 	memberNode->inited = true;
@@ -265,6 +265,20 @@ void MP1Node::nodeLoopOps() {
  * DESCRIPTION: handle function for Receiving Join Response
  */
 void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
+    int id = getIdFromAddr(&msg->addr);
+    int port = getPortFromAddr(&msg->addr);
+
+    // comparison to find member
+    struct addrComp {
+        int _id;
+        short _port;
+
+        // overload
+        addrComp(int id, short port): _id(id), _port(port) {}
+        bool operator()(MemberListEntry m) {
+            return (m.id == _id) && (m.port == _port);
+        }
+    };
 
 }
 
@@ -310,4 +324,23 @@ void MP1Node::printAddress(Address *addr)
 {
     printf("%d.%d.%d.%d:%d \n",  addr->addr[0],addr->addr[1],addr->addr[2],
                                                        addr->addr[3], *(short*)&addr->addr[4]) ;    
+}
+
+
+/**
+ * FUNCTION NAME: getIdFromAddr
+ *
+ * DESCRIPTION: get id
+ */
+int MP1Node::getIdFromAddr(Address *addr) {
+    return addr ? *((int*)addr->addr) : 0;
+}
+
+/**
+ * FUNCTION NAME: getPortFromAddr
+ *
+ * DESCRIPTION: get port
+ */
+int MP1Node::getPortFromAddr(Address *addr) {
+    return addr ? *((short*)&(addr->addr[4])) : 0;
 }
