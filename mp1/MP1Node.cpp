@@ -267,19 +267,23 @@ void MP1Node::nodeLoopOps() {
 void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
     int id = getIdFromAddr(&msg->addr);
     int port = getPortFromAddr(&msg->addr);
+    int curTime = par->getcurrtime();
 
-    // comparison to find member
-    struct addrComp {
-        int _id;
-        short _port;
-
-        // overload
-        addrComp(int id, short port): _id(id), _port(port) {}
-        bool operator()(MemberListEntry m) {
-            return (m.id == _id) && (m.port == _port);
+    vector<MemberListEntry>::iterator it;
+    for (it = m->memberList.begin(); it != m->memberList.end(); ++it) {
+        if (it->id == id && it->port == port) {
+            // update member
+            it->setheartbeat(msg->heartbeat);
+            it->timestamp = curTime;
+            return;
         }
-    };
+    }
 
+    // insert new member
+    MemberListEntry me(id, port, msg->heartbeat, curTime);
+	m->memberList.push_back(me);
+	log->logNodeAdd(&m->addr, &msg->addr);
+    return;
 }
 
 /**
