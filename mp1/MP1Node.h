@@ -80,7 +80,10 @@ public:
 	void printAddress(Address *addr);
 	virtual ~MP1Node();
 
+	void handleRecvJoinReq(Member *m, MessageHdr *msg, int msgSize);
 	void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
+	void updateMemberList(Member *m, MessageHdr *msg);
+	void replyJoinReq(Member *m, Address *addr);
 
 private:
 	// util func

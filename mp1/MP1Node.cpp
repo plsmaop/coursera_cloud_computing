@@ -226,12 +226,18 @@ bool MP1Node::recvCallBack( void *env, char *data, int size ) {
 
     switch (msg->msgType) {
         case JOINREQ:
+
+#ifdef DEBUGLOG
+            log->LOG(&m->addr, "FUCK...");
+#endif
+            handleRecvJoinReq(m, msg, size);
             break;
 
         case JOINREP:
-            // node has joined the group
-            m->inGroup = true;
 
+#ifdef DEBUGLOG
+            log->LOG(&m->addr, "FUCK ME...");
+#endif
             handleRecvJoinRep(m, msg, size);
             break;
 
@@ -260,11 +266,11 @@ void MP1Node::nodeLoopOps() {
 }
 
 /**
- * FUNCTION NAME: handleRecvJoinRep
+ * FUNCTION NAME: updateMemberList
  *
- * DESCRIPTION: handle function for Receiving Join Response
+ * DESCRIPTION: update member or insert new member if not exist
  */
-void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
+void MP1Node::updateMemberList( Member *m, MessageHdr *msg ) {
     int id = getIdFromAddr(&msg->addr);
     int port = getPortFromAddr(&msg->addr);
     int curTime = par->getcurrtime();
@@ -284,6 +290,42 @@ void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
 	m->memberList.push_back(me);
 	log->logNodeAdd(&m->addr, &msg->addr);
     return;
+}
+
+/**
+ * FUNCTION NAME: handleRecvJoinRep
+ *
+ * DESCRIPTION: handle function for Receiving Join Response
+ */
+void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
+    // node has joined the group
+    m->inGroup = true;
+    return updateMemberList(m, msg);
+}
+
+/**
+ * FUNCTION NAME: handleRecvJoinReq
+ *
+ * DESCRIPTION: handle function for Receiving Join Request
+ */
+void MP1Node::handleRecvJoinReq( Member *m, MessageHdr *msg, int msgSize ) {
+    replyJoinReq(m, &msg->addr);
+    return updateMemberList(m, msg);
+}
+
+/**
+ * FUNCTION NAME: handleRecvJoinReq
+ *
+ * DESCRIPTION: handle function for Receiving Join Request
+ */
+void MP1Node::replyJoinReq( Member *m, Address *addr ) {
+    MessageHdr *msg = new MessageHdr();
+    msg->msgType = JOINREP;
+    msg->heartbeat = m->heartbeat;
+    memcpy(&msg->addr, &m->addr, sizeof(memberNode->addr));
+
+    emulNet->ENsend(&memberNode->addr, addr, (char *)msg, sizeof(MessageHdr));
+    delete msg;
 }
 
 /**
