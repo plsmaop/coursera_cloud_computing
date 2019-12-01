@@ -262,6 +262,29 @@ void MP1Node::nodeLoopOps() {
 	 * Your code goes here
 	 */
 
+    // Update heartbeat
+    memberNode->heartbeat ++;
+
+    // remove member if necessary
+    int curTime = par->getcurrtime();
+
+    vector<MemberListEntry>::iterator it = memberNode->memberList.begin();
+    int myId = getIdFromAddr(&memberNode->addr);
+    while (it != memberNode->memberList.end()) {
+        if (myId == it->id) {
+            it->setheartbeat(memberNode->heartbeat);
+            it->timestamp = curTime;
+            it++;
+            continue;
+        }
+        if (curTime - it->heartbeat > TREMOVE) {
+            // remove
+            it = memberNode->memberList.erase(it);
+            Address addr = getAddr(it->id, it->port);
+            log->logNodeRemove(&memberNode->addr, &addr);
+        } else it++;
+    }
+
     return;
 }
 
@@ -275,12 +298,11 @@ void MP1Node::updateMemberList( Member *m, MessageHdr *msg ) {
     int port = getPortFromAddr(&msg->addr);
     int curTime = par->getcurrtime();
 
-    vector<MemberListEntry>::iterator it;
-    for (it = m->memberList.begin(); it != m->memberList.end(); ++it) {
-        if (it->id == id && it->port == port) {
+    for (MemberListEntry me : m->memberList) {
+        if (me.id == id && me.port == port) {
             // update member
-            it->setheartbeat(msg->heartbeat);
-            it->timestamp = curTime;
+            me.setheartbeat(msg->heartbeat);
+            me.timestamp = curTime;
             return;
         }
     }
@@ -389,4 +411,16 @@ int MP1Node::getIdFromAddr(Address *addr) {
  */
 int MP1Node::getPortFromAddr(Address *addr) {
     return addr ? *((short*)&(addr->addr[4])) : 0;
+}
+
+/**
+ * FUNCTION NAME: getAddr
+ *
+ * DESCRIPTION: get Address
+ */
+Address MP1Node::getAddr(int id, int port) {
+    Address a;
+    memcpy(a.addr, &id, sizeof(int));
+    memcpy(&a.addr[4], &port, sizeof(short));
+    return a;
 }

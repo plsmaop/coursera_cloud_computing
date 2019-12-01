@@ -89,6 +89,7 @@ private:
 	// util func
 	int getIdFromAddr(Address *addr);
 	int getPortFromAddr(Address *addr);
+	Address getAddr(int id, int port);
 };
 
 #endif /* _MP1NODE_H_ */
