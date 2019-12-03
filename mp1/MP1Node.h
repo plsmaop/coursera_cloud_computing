@@ -21,6 +21,7 @@
 #define TREMOVE 20
 #define TFAIL 5
 #define NULLADDR_LEN 6
+#define GOSSIP_NUM 5
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -32,6 +33,7 @@
 enum MsgTypes{
     JOINREQ,
     JOINREP,
+	GOSSIP,
     DUMMYLASTMSGTYPE
 };
 
@@ -44,6 +46,7 @@ typedef struct MessageHdr {
 	enum MsgTypes msgType;
 	Address addr;
 	long heartbeat;
+	vector<MemberListEntry> memberList;
 }MessageHdr;
 
 /**
@@ -82,14 +85,20 @@ public:
 
 	void handleRecvJoinReq(Member *m, MessageHdr *msg, int msgSize);
 	void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
-	void updateMemberList(Member *m, MessageHdr *msg);
-	void replyJoinReq(Member *m, Address *addr);
+	void handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize);
+	void updateMemberList(Member *m, MessageHdr *msg, int heartbeat, int timestamp);
+	void gossip();
+
+	// Gossip https://zhuanlan.zhihu.com/p/41228196
 
 private:
 	// util func
 	int getIdFromAddr(Address *addr);
 	int getPortFromAddr(Address *addr);
 	Address getAddr(int id, int port);
+	void sendMsg(Address *addr, MsgTypes ms);
+	unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
+	string getIdAndPortString(int id, int port);
 };
 
 #endif /* _MP1NODE_H_ */

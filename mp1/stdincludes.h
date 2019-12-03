@@ -17,12 +17,12 @@
 /*
  * Standard Header files
  */
-#include <stdio.h>
+#include <cstdio>
 #include <math.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstring>
+#include <cstdlib>
 #include <assert.h>
-#include <time.h>
+#include <ctime>
 #include <stdarg.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -35,7 +35,7 @@
 #include <algorithm>
 #include <queue>
 #include <fstream>
-#include <memory>
+#include <unordered_map>
 
 using namespace std;
 
