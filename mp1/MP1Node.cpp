@@ -95,7 +95,7 @@ int MP1Node::initThisNode(Address *joinaddr) {
 	 * This function is partially implemented and may require changes
 	 */
 	int id = getIdFromAddr(&memberNode->addr);
-	int port = getPortFromAddr(&memberNode->addr);
+	short port = getPortFromAddr(&memberNode->addr);
 
 	memberNode->bFailed = false;
 	memberNode->inited = true;
@@ -230,7 +230,7 @@ bool MP1Node::recvCallBack( void *env, char *data, int size ) {
             return false;
     }
 
-    delete msg;
+    // delete msg;
     return true;
 }
 
@@ -250,28 +250,30 @@ void MP1Node::nodeLoopOps() {
     // Update heartbeat
     memberNode->heartbeat++;
 
-    // Gossiping
-    gossip();
-
     // remove member if necessary
     int curTime = par->getcurrtime();
 
     vector<MemberListEntry>::iterator it = memberNode->memberList.begin();
     int myId = getIdFromAddr(&memberNode->addr);
     while (it != memberNode->memberList.end()) {
-        if (myId == it->id) {
+        if (myId == it->getid()) {
             it->setheartbeat(memberNode->heartbeat);
-            it->timestamp = curTime;
+            it->settimestamp(curTime);
             it++;
             continue;
         }
         if (curTime - it->heartbeat > TREMOVE) {
             // remove
             it = memberNode->memberList.erase(it);
-            Address addr = getAddr(it->id, it->port);
+            Address addr = Address();
+            memset(&addr, 0, sizeof(Address));
+            loadAddr(&addr, it->getid(), it->getport());
             log->logNodeRemove(&memberNode->addr, &addr);
         } else it++;
     }
+
+    // Gossiping
+    gossip();
 
     return;
 }
@@ -281,15 +283,22 @@ void MP1Node::nodeLoopOps() {
  *
  * DESCRIPTION: update member or insert new member if not exist
  */
-void MP1Node::updateMemberList( Member *m, MessageHdr *msg, int heartbeat, int timestamp ) {
-    int id = getIdFromAddr(&msg->addr);
-    int port = getPortFromAddr(&msg->addr);
+void MP1Node::updateMemberList( Member *m, Address *addr, int heartbeat, int timestamp ) {
+    int id = getIdFromAddr(addr);
+    short port = getPortFromAddr(addr);
+
+// #ifdef FUCK
+    if (id > 10 || id <= 0 || port != 0) {
+        // cout << id << " " << port << endl;
+        return;
+    }
+// #endif
 
     for (MemberListEntry me : m->memberList) {
-        if (me.id == id && me.port == port) {
+        if (me.getid() == id && me.getport() == port) {
             // update member
-            me.setheartbeat(heartbeat);
-            me.timestamp = timestamp;
+            me.setheartbeat(heartbeat > me.heartbeat ? heartbeat : me.heartbeat);
+            me.settimestamp(timestamp);
             return;
         }
     }
@@ -297,7 +306,7 @@ void MP1Node::updateMemberList( Member *m, MessageHdr *msg, int heartbeat, int t
     // insert new member
     MemberListEntry me(id, port, heartbeat, timestamp);
 	m->memberList.push_back(me);
-	log->logNodeAdd(&m->addr, &msg->addr);
+	log->logNodeAdd(&m->addr, addr);
     return;
 }
 
@@ -309,7 +318,7 @@ void MP1Node::updateMemberList( Member *m, MessageHdr *msg, int heartbeat, int t
 void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
     // node has joined the group
     m->inGroup = true;
-    return updateMemberList(m, msg, m->heartbeat, par->getcurrtime());
+    return updateMemberList(m, &msg->addr, m->heartbeat, par->getcurrtime());
 }
 
 /**
@@ -319,7 +328,7 @@ void MP1Node::handleRecvJoinRep( Member *m, MessageHdr *msg, int msgSize ) {
  */
 void MP1Node::handleRecvJoinReq( Member *m, MessageHdr *msg, int msgSize ) {
     sendMsg(&msg->addr, JOINREP);
-    return updateMemberList(m, msg, m->heartbeat, par->getcurrtime());
+    return updateMemberList(m, &msg->addr, m->heartbeat, par->getcurrtime());
 }
 
 /**
@@ -329,14 +338,26 @@ void MP1Node::handleRecvJoinReq( Member *m, MessageHdr *msg, int msgSize ) {
  */
 void MP1Node::handleRecvGossipMsg( Member *m, MessageHdr *msg, int msgSize ) {
     vector<MemberListEntry>::iterator it = msg->memberList.begin();
-    while (it != msg->memberList.end()) {
-        updateMemberList(m, msg, it->heartbeat, it->timestamp);
 
+    while (it != msg->memberList.end()) {
+        int id = it->getid();
+        short port = it->getport();
+
+        if (id > 10 || id <= 0 || port != 0) {
+            cout << id << " " << port << " " << it->heartbeat << " " << it->timestamp << endl;
+            it++;
+            continue;
+        }
+
+        Address addr = Address();
+        memset(&addr, 0, sizeof(Address));
+        loadAddr(&addr, it->getid(), it->getport());
+        updateMemberList(m, &addr, it->heartbeat, it->timestamp);
         it++;
     }
 
     // update
-    updateMemberList(m, msg, m->heartbeat, par->getcurrtime());
+    updateMemberList(m, &msg->addr, m->heartbeat, par->getcurrtime());
 }
 
 /**
@@ -351,19 +372,35 @@ void MP1Node::gossip() {
     string idAndPort = getIdAndPortString(getIdFromAddr(&memberNode->addr), getPortFromAddr(&memberNode->addr));
     ht[idAndPort] = true;
 
-    Address addr;
-    int count = GOSSIP_NUM;
     int mlLen = memberNode->memberList.size();
-    while (count--) {
+    int count = GOSSIP_NUM < mlLen ? GOSSIP_NUM : mlLen;
+    vector<MemberListEntry>::iterator it = memberNode->memberList.begin();
+    while (count && mlLen > 0) {
+        it = memberNode->memberList.begin();
         srand(time(NULL));
         int meIndex = rand() % mlLen;
-        MemberListEntry m = memberNode->memberList[meIndex];
-        idAndPort = getIdAndPortString(m.id, m.port);
+        it += mlLen;
+        idAndPort = getIdAndPortString(it->getid(), it->getport());
+
+// #ifdef FUCK
+        int id = it->id;
+        short port = it->port;
+        if (id > 10 || id <= 0 || port != 0) {
+            // cout << id << " " << port << endl;
+            // count++;
+            memberNode->memberList.erase(it);
+            mlLen = memberNode->memberList.size();
+            continue;
+        }
+// #endif
         if (ht[idAndPort]) continue;
 
-        addr = getAddr(m.id, m.port);
+        Address addr = Address();
+        memset(&addr, 0, sizeof(Address));
+        loadAddr(&addr, it->getid(), it->getport());
         sendMsg(&addr ,GOSSIP);
         ht[idAndPort] = true;
+        --count;
     }
 
     return;
@@ -419,7 +456,7 @@ void MP1Node::printAddress(Address *addr)
  * DESCRIPTION: get id
  */
 int MP1Node::getIdFromAddr(Address *addr) {
-    return addr ? *((int*)addr->addr) : 0;
+    return addr ? *((int*)&(addr->addr)) : 0;
 }
 
 /**
@@ -427,20 +464,18 @@ int MP1Node::getIdFromAddr(Address *addr) {
  *
  * DESCRIPTION: get port
  */
-int MP1Node::getPortFromAddr(Address *addr) {
+short MP1Node::getPortFromAddr(Address *addr) {
     return addr ? *((short*)&(addr->addr[4])) : 0;
 }
 
 /**
- * FUNCTION NAME: getAddr
+ * FUNCTION NAME: loadAddr
  *
- * DESCRIPTION: get Address
+ * DESCRIPTION: load Address
  */
-Address MP1Node::getAddr(int id, int port) {
-    Address a;
-    memcpy(a.addr, &id, sizeof(int));
-    memcpy(&a.addr[4], &port, sizeof(short));
-    return a;
+void MP1Node::loadAddr(Address *addr, int id, short port) {
+    memcpy(addr->addr, &id, sizeof(int));
+    memcpy(&addr->addr[4], &port, sizeof(short));
 }
 
 /**
@@ -450,6 +485,7 @@ Address MP1Node::getAddr(int id, int port) {
  */
 void MP1Node::sendMsg(Address *addr, MsgTypes ms) {
     MessageHdr *msg = new MessageHdr();
+    memset(msg, 0, sizeof(MessageHdr));
     msg->msgType = ms;
     msg->heartbeat = memberNode->heartbeat;
     msg->addr = memberNode->addr;
@@ -466,7 +502,7 @@ void MP1Node::sendMsg(Address *addr, MsgTypes ms) {
  * FUNCTION NAME: memberListToHT
  *
  * DESCRIPTION: convert member list to hash table
- */
+ 
 unordered_map<string, int> MP1Node::memberListToHT(vector<MemberListEntry> &ml) {
     unordered_map<string, int> ht;
     MemberListEntry m;
@@ -476,13 +512,13 @@ unordered_map<string, int> MP1Node::memberListToHT(vector<MemberListEntry> &ml) 
     }
 
     return ht;
-}
+} */
 
 /**
  * FUNCTION NAME: getIdAndPortString
  *
  * DESCRIPTION: convert id and port to string and concat them
  */
-string MP1Node::getIdAndPortString(int id, int port) {
+string MP1Node::getIdAndPortString(int id, short port) {
     return to_string(id) + ":" + to_string(port);
 }

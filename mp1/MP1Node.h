@@ -21,7 +21,7 @@
 #define TREMOVE 20
 #define TFAIL 5
 #define NULLADDR_LEN 6
-#define GOSSIP_NUM 5
+#define GOSSIP_NUM par->EN_GPSZ / 3
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -86,7 +86,7 @@ public:
 	void handleRecvJoinReq(Member *m, MessageHdr *msg, int msgSize);
 	void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
 	void handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize);
-	void updateMemberList(Member *m, MessageHdr *msg, int heartbeat, int timestamp);
+	void updateMemberList(Member *m, Address *addr, int heartbeat, int timestamp);
 	void gossip();
 
 	// Gossip https://zhuanlan.zhihu.com/p/41228196
@@ -94,11 +94,11 @@ public:
 private:
 	// util func
 	int getIdFromAddr(Address *addr);
-	int getPortFromAddr(Address *addr);
-	Address getAddr(int id, int port);
+	short getPortFromAddr(Address *addr);
+	void loadAddr(Address *addr, int id, short port);
 	void sendMsg(Address *addr, MsgTypes ms);
-	unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
-	string getIdAndPortString(int id, int port);
+	// unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
+	string getIdAndPortString(int id, short port);
 };
 
 #endif /* _MP1NODE_H_ */
