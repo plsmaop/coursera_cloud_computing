@@ -7,9 +7,9 @@
 #ifndef _LOG_H_
 #define _LOG_H_
 
-#include "stdincludes.h"
-#include "Params.h"
 #include "Member.h"
+#include "Params.h"
+#include "stdincludes.h"
 
 /*
  * Macros
@@ -25,18 +25,19 @@
  *
  * DESCRIPTION: Functions to log messages in a debug log
  */
-class Log{
-private:
-	Params *par;
-	bool firstTime;
-public:
-	Log(Params *p);
-	Log(const Log &anotherLog);
-	Log& operator = (const Log &anotherLog);
-	virtual ~Log();
-	void LOG(Address *, const char * str, ...);
-	void logNodeAdd(Address *, Address *);
-	void logNodeRemove(Address *, Address *);
+class Log {
+   private:
+    Params *par;
+    bool firstTime;
+
+   public:
+    Log(Params *p);
+    Log(const Log &anotherLog);
+    Log &operator=(const Log &anotherLog);
+    virtual ~Log();
+    void LOG(Address *, const char *str, ...);
+    void logNodeAdd(Address *, Address *);
+    void logNodeRemove(Address *, Address *);
 };
 
 #endif /* _LOG_H_ */
