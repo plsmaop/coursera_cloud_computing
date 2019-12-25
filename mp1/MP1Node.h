@@ -87,12 +87,12 @@ public:
 
 private:
   // util func
-  int getIdFromAddr(char *addr);
-  short getPortFromAddr(char *addr);
+  int getIdFromAddr(char *addr) const;
+  short getPortFromAddr(char *addr) const;
   void loadAddr(Address *addr, int id, short port);
   void sendMsg(Address *addr, MsgTypes ms);
   // unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
-  string getIdAndPortString(int id, short port);
+  string getIdAndPortString(int id, short port) const;
 
   // serialize and deserialize
   void marshall(char *_dest, vector<MemberListEntry> &m);
