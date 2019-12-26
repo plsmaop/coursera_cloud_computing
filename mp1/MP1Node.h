@@ -72,9 +72,9 @@ public:
   bool recvCallBack(void *env, char *data, int size);
   void nodeLoopOps();
   int isNullAddress(Address *addr);
-  Address getJoinAddress();
+  static Address getJoinAddress();
   void initMemberListTable(Member *memberNode);
-  void printAddress(Address *addr);
+  void printAddress(Address *addr) const;
   virtual ~MP1Node();
 
   void handleRecvJoinReq(Member *m, MessageHdr *msg, int msgSize);
@@ -87,12 +87,12 @@ public:
 
 private:
   // util func
-  int getIdFromAddr(char *addr) const;
-  short getPortFromAddr(char *addr) const;
-  void loadAddr(Address *addr, int id, short port);
+  static int getIdFromAddr(char *addr);
+  static short getPortFromAddr(char *addr);
+  static void loadAddr(Address *addr, int id, short port);
   void sendMsg(Address *addr, MsgTypes ms);
   // unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
-  string getIdAndPortString(int id, short port) const;
+  static string getIdAndPortString(int id, short port);
 
   // serialize and deserialize
   void marshall(char *_dest, vector<MemberListEntry> &m);
