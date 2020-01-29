@@ -5,7 +5,11 @@
  * 				Definition of MP1Node class functions.
  **********************************/
 
+#include <unordered_map>
+#include <random>
+
 #include "MP1Node.h"
+
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}

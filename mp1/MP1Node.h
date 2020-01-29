@@ -8,6 +8,8 @@
 #ifndef _MP1NODE_H_
 #define _MP1NODE_H_
 
+#include <unordered_map>
+
 #include "EmulNet.h"
 #include "Log.h"
 #include "Member.h"
