@@ -22,6 +22,7 @@
 #define TFAIL 5
 #define ADDR_LEN 6
 #define GOSSIP_NUM (par->EN_GPSZ) / 3
+#define DATA_FRAME_SIZE (ADDR_LEN + sizeof(long) + 1)
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -40,7 +41,7 @@ enum MsgTypes { JOINREQ, JOINREP, GOSSIP, DUMMYLASTMSGTYPE };
 typedef struct MessageHdr {
     enum MsgTypes msgType;
     char addr[ADDR_LEN];
-    long heartbeat;
+    long timestamp;
     size_t dataSize;
     size_t sentSize;
 } MessageHdr;
@@ -83,14 +84,14 @@ class MP1Node {
     void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
     void handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize);
     void updateMemberList(Member *m, char *addr, int heartbeat, int timestamp);
-    void gossip(unordered_map<string, bool> &exclude);
+    void gossip(unordered_map<string, bool> &exclude, long timestamp);
 
     // util func
     static int getIdFromAddr(char *addr);
     static short getPortFromAddr(char *addr);
     static void loadAddr(Address *addr, int id, short port);
     void sendMsg(Address *addr, MsgTypes ms);
-    void sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent);
+    void sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent, long timestamp);
 
     // unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
     static string getIdAndPortString(int id, short port);

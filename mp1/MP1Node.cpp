@@ -264,7 +264,7 @@ void MP1Node::nodeLoopOps() {
             m.setheartbeat(memberNode->heartbeat);
             m.settimestamp(curTime);
             memberNode->memberList.push_back(m);
-        } else if (curTime - m.getheartbeat() > TREMOVE) {
+        } else if (curTime - m.getheartbeat() > 2 * TREMOVE) {
             auto id = m.getid();
             auto port = m.getport();
             auto addr = Address();
@@ -281,7 +281,7 @@ void MP1Node::nodeLoopOps() {
         {{getIdAndPortString(getIdFromAddr(memberNode->addr.addr),
                              getPortFromAddr(memberNode->addr.addr)),
           true}});
-    gossip(exclude);
+    gossip(exclude, par->getcurrtime());
 
     return;
 }
@@ -295,27 +295,32 @@ void MP1Node::updateMemberList(Member *m, char *addr, int heartbeat,
                                int timestamp) {
     auto id = getIdFromAddr(addr);
     auto port = getPortFromAddr(addr);
+    auto curTime = par->getcurrtime();
 
     for (auto &me : m->memberList) {
         if (me.getid() == id && me.getport() == port) {
+            if (heartbeat <= me.heartbeat) return;
+
             // update member
-            me.setheartbeat(heartbeat > me.heartbeat ? heartbeat
-                                                     : me.heartbeat);
-            me.settimestamp(timestamp);
+            me.setheartbeat(heartbeat);
+            me.settimestamp(curTime);
+
             return;
         }
     }
 
     // insert new member
     if (m->heartbeat - TREMOVE < heartbeat) {
-        MemberListEntry me(id, port, heartbeat, timestamp);
+        MemberListEntry me(id, port, heartbeat, curTime);
         m->memberList.push_back(me);
 
         // construct an Address instance
-        auto a = Address();
-        memset(&a, 0, sizeof(Address));
-        memcpy(a.addr, addr, ADDR_LEN);
-        log->logNodeAdd(&m->addr, &a);
+        if (getIdFromAddr(m->addr.addr) != id) {
+            auto a = Address();
+            memset(&a, 0, sizeof(Address));
+            memcpy(a.addr, addr, ADDR_LEN);
+            log->logNodeAdd(&m->addr, &a);
+        }
     }
 
     return;
@@ -368,7 +373,7 @@ void MP1Node::handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize) {
     }
 
     // update
-    updateMemberList(m, msg->addr, m->heartbeat, par->getcurrtime());
+    updateMemberList(m, msg->addr, m->heartbeat, msg->timestamp);
 
     // Gossiping
     // self and sender
@@ -384,7 +389,7 @@ void MP1Node::handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize) {
         exclude[getIdAndPortString(s.getid(), s.getport())] = true;
     }
     
-    gossip(exclude);
+    gossip(exclude, msg->timestamp);
 
     return;
 }
@@ -394,7 +399,7 @@ void MP1Node::handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize) {
  *
  * DESCRIPTION: gossip protocol
  */
-void MP1Node::gossip(unordered_map<string, bool> &exclude) {
+void MP1Node::gossip(unordered_map<string, bool> &exclude, long timestamp) {
     auto randomOrder(memberNode->memberList);
 
     // shuffle
@@ -411,7 +416,6 @@ void MP1Node::gossip(unordered_map<string, bool> &exclude) {
         idAndPort = getIdAndPortString(me.getid(), me.getport());
         if (exclude[idAndPort]) continue;
 
-        // cout << idAndPort << endl;
         to_be_sent.push_back(me);
     }
 
@@ -428,7 +432,7 @@ void MP1Node::gossip(unordered_map<string, bool> &exclude) {
         auto addr = Address();
         memset(&addr, 0, sizeof(Address));
         loadAddr(&addr, me.getid(), me.getport());
-        sendMsg(&addr, GOSSIP, sent);
+        sendMsg(&addr, GOSSIP, sent, timestamp);
     }
 
     return;
@@ -514,7 +518,7 @@ void MP1Node::sendMsg(Address *addr, MsgTypes ms) {
     memset(&msg, 0, sizeof(MessageHdr));
     memcpy(msg.addr, memberNode->addr.addr, ADDR_LEN);
     msg.msgType = ms;
-    msg.heartbeat = memberNode->heartbeat;
+    msg.timestamp = par->getcurrtime();
 
     emulNet->ENsend(&memberNode->addr, addr, (char *)(&msg), sizeof(MessageHdr));
 }
@@ -524,13 +528,13 @@ void MP1Node::sendMsg(Address *addr, MsgTypes ms) {
  *
  * DESCRIPTION: send message to the address for gossip
  */
-void MP1Node::sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent) {
+void MP1Node::sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent, long timestamp) {
     // gossip msg includes member list and sent list
     // MessageHdr + addrs + sent
     size_t dataSize =
-        (ADDR_LEN + sizeof(long) + 1) * memberNode->memberList.size();
+        DATA_FRAME_SIZE * memberNode->memberList.size();
 
-    size_t sentSize = (ADDR_LEN + sizeof(long) + 1) * sent.size();
+    size_t sentSize = DATA_FRAME_SIZE * sent.size();
 
     size_t msgSize = sizeof(MessageHdr) + dataSize + sentSize + 1;
     MessageHdr *msg = static_cast<MessageHdr *>(malloc(msgSize));
@@ -542,7 +546,7 @@ void MP1Node::sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent)
 
     memcpy(msg->addr, memberNode->addr.addr, ADDR_LEN);
     msg->msgType = ms;
-    msg->heartbeat = memberNode->heartbeat;
+    msg->timestamp = timestamp;
 
     emulNet->ENsend(&memberNode->addr, addr, (char *)msg, msgSize);
     delete msg;
@@ -621,11 +625,13 @@ void MP1Node::marshall(char *_dest, vector<MemberListEntry> &m, vector<MemberLis
  */
 void MP1Node::unmarshall(char *_src, size_t dataSize, size_t sentSize,
                          vector<MemberListEntry> &m, vector<MemberListEntry> &sent) {
-    size_t mleSize = dataSize / (ADDR_LEN + sizeof(long) + 1);
+    size_t mleSize = dataSize / DATA_FRAME_SIZE;
     long heartbeat;
 
     char addr[ADDR_LEN];
     for (decltype(mleSize) i = 0; i < mleSize; ++i) {
+        // dataFrameSize = ADDR_LEN + sizeof(long) + 1
+
         memcpy(addr, _src, ADDR_LEN);
         _src += ADDR_LEN;
         memcpy(&heartbeat, _src, sizeof(long));
@@ -638,8 +644,10 @@ void MP1Node::unmarshall(char *_src, size_t dataSize, size_t sentSize,
         ++_src;
     }
 
-    size_t sentNum = sentSize / (ADDR_LEN + sizeof(long) + 1);
+    size_t sentNum = sentSize / DATA_FRAME_SIZE;
     for (decltype(sentNum) i = 0; i < sentNum; ++i) {
+        // dataFrameSize = ADDR_LEN + sizeof(long) + 1
+
         memcpy(addr, _src, ADDR_LEN);
         _src += ADDR_LEN;
         memcpy(&heartbeat, _src, sizeof(long));
