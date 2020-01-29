@@ -38,10 +38,11 @@ enum MsgTypes { JOINREQ, JOINREP, GOSSIP, DUMMYLASTMSGTYPE };
  * DESCRIPTION: Header and content of a message
  */
 typedef struct MessageHdr {
-  enum MsgTypes msgType;
-  char addr[ADDR_LEN];
-  long heartbeat;
-  size_t dataSize;
+    enum MsgTypes msgType;
+    char addr[ADDR_LEN];
+    long heartbeat;
+    size_t dataSize;
+    size_t sentSize;
 } MessageHdr;
 
 /**
@@ -51,52 +52,53 @@ typedef struct MessageHdr {
  * failure detection
  */
 class MP1Node {
-private:
-  EmulNet *emulNet;
-  Log *log;
-  Params *par;
-  Member *memberNode;
-  char NULLADDR[ADDR_LEN];
+   private:
+    EmulNet *emulNet;
+    Log *log;
+    Params *par;
+    Member *memberNode;
+    char NULLADDR[ADDR_LEN];
 
-public:
-  MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
-  Member *getMemberNode() { return memberNode; }
-  int recvLoop();
-  static int enqueueWrapper(void *env, char *buff, int size);
-  void nodeStart(char *servaddrstr, short serverport);
-  int initThisNode(Address *joinaddr);
-  int introduceSelfToGroup(Address *joinAddress);
-  int finishUpThisNode();
-  void nodeLoop();
-  void checkMessages();
-  bool recvCallBack(void *env, char *data, int size);
-  void nodeLoopOps();
-  int isNullAddress(Address *addr);
-  static Address getJoinAddress();
-  void initMemberListTable(Member *memberNode);
-  void printAddress(Address *addr) const;
-  virtual ~MP1Node();
+   public:
+    MP1Node(Member *, Params *, EmulNet *, Log *, Address *);
+    Member *getMemberNode() { return memberNode; }
+    int recvLoop();
+    static int enqueueWrapper(void *env, char *buff, int size);
+    void nodeStart(char *servaddrstr, short serverport);
+    int initThisNode(Address *joinaddr);
+    int introduceSelfToGroup(Address *joinAddress);
+    int finishUpThisNode();
+    void nodeLoop();
+    void checkMessages();
+    bool recvCallBack(void *env, char *data, int size);
+    void nodeLoopOps();
+    int isNullAddress(Address *addr);
+    static Address getJoinAddress();
+    void initMemberListTable(Member *memberNode);
+    void printAddress(Address *addr) const;
+    virtual ~MP1Node();
 
-  void handleRecvJoinReq(Member *m, MessageHdr *msg, int msgSize);
-  void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
-  void handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize);
-  void updateMemberList(Member *m, char *addr, int heartbeat, int timestamp);
-  void gossip(unordered_map<string, bool> &exclude);
+   private:
+    void handleRecvJoinReq(Member *m, MessageHdr *msg, int msgSize);
+    void handleRecvJoinRep(Member *m, MessageHdr *msg, int msgSize);
+    void handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize);
+    void updateMemberList(Member *m, char *addr, int heartbeat, int timestamp);
+    void gossip(unordered_map<string, bool> &exclude);
 
-  // Gossip https://zhuanlan.zhihu.com/p/41228196
+    // util func
+    static int getIdFromAddr(char *addr);
+    static short getPortFromAddr(char *addr);
+    static void loadAddr(Address *addr, int id, short port);
+    void sendMsg(Address *addr, MsgTypes ms);
+    void sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent);
 
-private:
-  // util func
-  static int getIdFromAddr(char *addr);
-  static short getPortFromAddr(char *addr);
-  static void loadAddr(Address *addr, int id, short port);
-  void sendMsg(Address *addr, MsgTypes ms);
-  // unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
-  static string getIdAndPortString(int id, short port);
+    // unordered_map<string, int> memberListToHT(vector<MemberListEntry> &ml);
+    static string getIdAndPortString(int id, short port);
+    void loadIdAndPortFromString(string idAndPort, int &id, short &port);
 
-  // serialize and deserialize
-  void marshall(char *_dest, vector<MemberListEntry> &m);
-  void unmarshall(char *_src, size_t dataSize, vector<MemberListEntry> &m);
+    // serialize and deserialize
+    void marshall(char *_dest, vector<MemberListEntry> &m, vector<MemberListEntry> &sent);
+    void unmarshall(char *_src, size_t dataSize, size_t sentSize, vector<MemberListEntry> &m, vector<MemberListEntry> &sent);
 };
 
 #endif /* _MP1NODE_H_ */
