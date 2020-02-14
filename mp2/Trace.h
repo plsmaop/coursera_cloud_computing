@@ -17,24 +17,22 @@
 /**
  * CLASS NAME: Trace
  *
- * DESCRIPTION: Creates a trace of function entry, exit and variable values for debugging
+ * DESCRIPTION: Creates a trace of function entry, exit and variable values for
+ * debugging
  */
 class Trace {
-public:
-	FILE *logF;
-	int traceFileCreate();
-	int printToTrace(
-             char *keyMessage,    // Message to be written as key
-             char *valueMessage   // Message to be written as value
-             );
-	int traceFileClose();
-	int funcEntry(
-              char *valueMessage  // Value
-			  );
-	int funcExit(
-             char *valueMessage, // Value
-             int f_rc = SUCCESS           // Function RC
-             );
+   public:
+    FILE *logF;
+    int traceFileCreate();
+    int printToTrace(char *keyMessage,   // Message to be written as key
+                     char *valueMessage  // Message to be written as value
+    );
+    int traceFileClose();
+    int funcEntry(char *valueMessage  // Value
+    );
+    int funcExit(char *valueMessage,  // Value
+                 int f_rc = SUCCESS   // Function RC
+    );
 };
 
 #endif

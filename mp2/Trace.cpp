@@ -28,12 +28,10 @@
  *
  ****************************************************************/
 int Trace::traceFileCreate() {
-
-    int rc = SUCCESS;        // Return code
+    int rc = SUCCESS;  // Return code
 
     logF = fopen(LOG_FILE_LOCATION, "w");
-    if ( NULL == logF )
-    {
+    if (NULL == logF) {
         printf("\nUnable to open log file in write mode\n");
         rc = FAILURE;
     }
@@ -56,8 +54,7 @@ int Trace::traceFileCreate() {
  *
  ****************************************************************/
 int Trace::printToTrace(char *keyMsg, char *valueMsg) {
-
-    int rc = SUCCESS;        // Return code
+    int rc = SUCCESS;  // Return code
 
     fprintf(logF, "%s : %s\n", keyMsg, valueMsg);
     fflush(logF);
@@ -76,7 +73,6 @@ int Trace::printToTrace(char *keyMsg, char *valueMsg) {
  *
  ****************************************************************/
 int Trace::traceFileClose() {
-
     int rc = SUCCESS;
 
     fclose(logF);
@@ -99,8 +95,7 @@ int Trace::traceFileClose() {
  *
  ****************************************************************/
 int Trace::funcEntry(char *funcName) {
-
-    int rc = SUCCESS;        // Return code
+    int rc = SUCCESS;  // Return code
 
     fprintf(logF, "ENTRY - %s\n", funcName);
     fflush(logF);
@@ -124,8 +119,7 @@ int Trace::funcEntry(char *funcName) {
  *
  ****************************************************************/
 int Trace::funcExit(char *funcName, int f_rc) {
-
-    int rc = SUCCESS;        // Return code
+    int rc = SUCCESS;  // Return code
 
     fprintf(logF, "EXIT - %s with rc = %d\n", funcName, f_rc);
     fflush(logF);
