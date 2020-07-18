@@ -30,10 +30,10 @@ MP2Node::~MP2Node() {
  * FUNCTION NAME: updateRing
  *
  * DESCRIPTION: This function does the following:
- * 				1) Gets the current membership list from the Membership
- * Protocol (MP1Node) The membership list is returned as a vector of Nodes. See
- * Node class in Node.h 2) Constructs the ring based on the membership list 3)
- * Calls the Stabilization Protocol
+ * 				1) Gets the current membership list from the
+ * Membership Protocol (MP1Node) The membership list is returned as a vector of
+ * Nodes. See Node class in Node.h 2) Constructs the ring based on the
+ * membership list 3) Calls the Stabilization Protocol
  */
 void MP2Node::updateRing() {
     /*
@@ -58,6 +58,10 @@ void MP2Node::updateRing() {
      */
     // Run stabilization protocol if the hash table size is greater than zero
     // and if there has been a changed in the ring
+    if (curMemList.size() != ring.size()) {
+    }
+
+    ring = std::move(curMemList);
 }
 
 /**
@@ -172,6 +176,8 @@ bool MP2Node::createKeyValue(string key, string value, ReplicaType replica) {
      * Implement this
      */
     // Insert key, value, replicaType into the hash table
+    Entry e(value, par->getcurrtime(), replica);
+    return ht->create(key, e.convertToString());
 }
 
 /**
@@ -187,6 +193,7 @@ string MP2Node::readKey(string key) {
      * Implement this
      */
     // Read key from local hash table and return value
+    return ht->read(key);
 }
 
 /**
@@ -194,14 +201,16 @@ string MP2Node::readKey(string key) {
  *
  * DESCRIPTION: Server side UPDATE API
  * 				This function does the following:
- * 				1) Update the key to the new value in the local hash
- * table 2) Return true or false based on success or failure
+ * 				1) Update the key to the new value in the local
+ * hash table 2) Return true or false based on success or failure
  */
 bool MP2Node::updateKeyValue(string key, string value, ReplicaType replica) {
     /*
      * Implement this
      */
     // Update key in local hash table and return true or false
+    Entry e(value, par->getcurrtime(), replica);
+    return ht->update(key, e.convertToString());
 }
 
 /**
@@ -218,6 +227,7 @@ bool MP2Node::deletekey(string key) {
      * Implement this
      */
     // Delete the key from the local hash table
+    return ht->deleteKey(key);
 }
 
 /**
@@ -266,8 +276,8 @@ void MP2Node::checkMessages() {
  * FUNCTION NAME: findNodes
  *
  * DESCRIPTION: Find the replicas of the given keyfunction
- * 				This function is responsible for finding the replicas of
- * a key
+ * 				This function is responsible for finding the
+ * replicas of a key
  */
 vector<Node> MP2Node::findNodes(string key) {
     size_t pos = hashFunction(key);
