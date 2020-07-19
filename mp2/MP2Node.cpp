@@ -103,6 +103,71 @@ size_t MP2Node::hashFunction(string key) {
 }
 
 /**
+ * FUNCTION NAME: sendWithReplicaType
+ *
+ * DESCRIPTION: helper function
+ * 				The function does the following:
+ * 				1) Insert ReplicaType into a Message
+ * 				2) Send the Message the Node
+ */
+void MP2Node::sendWithReplicaType(Address &&addr, Message &&m, ReplicaType r) {
+    m.replica = r;
+    emulNet->ENsend(&memberNode->addr, &addr, m.toString());
+};
+
+/**
+ * FUNCTION NAME: sendMsg
+ *
+ * DESCRIPTION: helper function
+ * 				The function does the following:
+ * 				1) Get nodes of the given key
+ * 				2) Send the Message to the nodes
+ */
+void MP2Node::sendMsg(const string &&key, const string &&value,
+                      MessageType type) {
+    auto replicas = findNodes(key);
+    if (replicas.size() < 3) {
+        return;
+    }
+
+    Message m(g_transID++, memberNode->addr, type, key, value);
+    sendWithReplicaType(forward<Address>(replicas[0].nodeAddress),
+                        forward<Message>(m), PRIMARY);
+    sendWithReplicaType(forward<Address>(replicas[1].nodeAddress),
+                        forward<Message>(m), SECONDARY);
+    sendWithReplicaType(forward<Address>(replicas[2].nodeAddress),
+                        forward<Message>(m), TERTIARY);
+};
+
+/**
+ * FUNCTION NAME: replyMsg
+ *
+ * DESCRIPTION: helper function
+ * 				The function does the following:
+ * 				1) Construct reply message
+ * 				2) Reply message
+ */
+void MP2Node::replyMsg(Message &&oldMsg, bool isSuc) {
+    Message m(oldMsg.transID, memberNode->addr, REPLY, isSuc);
+    sendWithReplicaType(forward<Address>(oldMsg.fromAddr), forward<Message>(m),
+                        oldMsg.replica);
+};
+
+/**
+ * FUNCTION NAME: replyMsg
+ *
+ * DESCRIPTION: helper function
+ * 				The function does the following:
+ * 				1) Construct reply message
+ * 				2) Reply message
+ */
+void MP2Node::replyMsg(Message &&oldMsg, string &&value) {
+    Message m(oldMsg.transID, memberNode->addr, value);
+    sendWithReplicaType(forward<Address>(oldMsg.fromAddr), forward<Message>(m),
+                        oldMsg.replica);
+};
+
+/**
  * FUNCTION NAME: clientCreate
  *
  * DESCRIPTION: client side CREATE API
@@ -115,6 +180,8 @@ void MP2Node::clientCreate(string key, string value) {
     /*
      * Implement this
      */
+
+    sendMsg(forward<string>(key), forward<string>(value), CREATE);
 }
 
 /**
@@ -130,6 +197,8 @@ void MP2Node::clientRead(string key) {
     /*
      * Implement this
      */
+
+    sendMsg(forward<string>(key), "", READ);
 }
 
 /**
@@ -145,6 +214,8 @@ void MP2Node::clientUpdate(string key, string value) {
     /*
      * Implement this
      */
+
+    sendMsg(forward<string>(key), forward<string>(value), UPDATE);
 }
 
 /**
@@ -160,6 +231,7 @@ void MP2Node::clientDelete(string key) {
     /*
      * Implement this
      */
+    sendMsg(forward<string>(key), "", DELETE);
 }
 
 /**
@@ -264,6 +336,67 @@ void MP2Node::checkMessages() {
         /*
          * Handle the message types here
          */
+
+        cout << message << endl;
+        Message m(message);
+        switch (m.type) {
+            case CREATE: {
+                auto isSuc = createKeyValue(m.key, m.value, m.replica);
+                if (isSuc) {
+                    log->logCreateSuccess(&memberNode->addr, false, m.transID,
+                                          m.key, m.value);
+                } else {
+                    log->logCreateFail(&memberNode->addr, false, m.transID,
+                                       m.key, m.value);
+                }
+                replyMsg(forward<Message>(m), isSuc);
+
+                break;
+            }
+            case READ: {
+                auto value = readKey(m.key);
+                if (value.length() > 0) {
+                    log->logReadSuccess(&memberNode->addr, false, m.transID,
+                                        m.key, value);
+                } else {
+                    log->logReadFail(&memberNode->addr, false, m.transID,
+                                     m.key);
+                }
+
+                replyMsg(forward<Message>(m), forward<string>(value));
+                break;
+            }
+            case UPDATE: {
+                auto isSuc = updateKeyValue(m.key, m.value, m.replica);
+                if (isSuc) {
+                    log->logUpdateSuccess(&memberNode->addr, false, m.transID,
+                                          m.key, m.value);
+                } else {
+                    log->logUpdateFail(&memberNode->addr, false, m.transID,
+                                       m.key, m.value);
+                }
+                replyMsg(forward<Message>(m), isSuc);
+                break;
+            }
+            case DELETE: {
+                auto isSuc = deletekey(m.key);
+                if (isSuc) {
+                    log->logDeleteSuccess(&memberNode->addr, false, m.transID,
+                                          m.key);
+                } else {
+                    log->logDeleteFail(&memberNode->addr, false, m.transID,
+                                       m.key);
+                }
+                replyMsg(forward<Message>(m), isSuc);
+                break;
+            }
+            case REPLY: {
+            }
+            case READREPLY: {
+            }
+            default:
+                break;
+        }
     }
 
     /*

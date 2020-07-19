@@ -10,6 +10,8 @@
 /**
  * Header files
  */
+#include <utility>
+
 #include "EmulNet.h"
 #include "HashTable.h"
 #include "Log.h"
@@ -48,6 +50,12 @@ class MP2Node {
     EmulNet *emulNet;
     // Object of Log
     Log *log;
+
+    // helper
+    void sendWithReplicaType(Address &&, Message &&, ReplicaType);
+    void sendMsg(const string &&, const string &&, MessageType);
+    void replyMsg(Message &&, bool);
+    void replyMsg(Message &&, string &&);
 
    public:
     MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log,
