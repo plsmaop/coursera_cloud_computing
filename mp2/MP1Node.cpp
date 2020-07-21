@@ -5,11 +5,10 @@
  * 				Definition of MP1Node class functions.
  **********************************/
 
-#include <unordered_map>
-#include <random>
-
 #include "MP1Node.h"
 
+#include <random>
+#include <unordered_map>
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -160,8 +159,6 @@ int MP1Node::finishUpThisNode() {
     emulNet = NULL;
     log = NULL;
     par = NULL;
-
-    delete memberNode;
 }
 
 /**
@@ -360,7 +357,6 @@ void MP1Node::handleRecvJoinReq(Member *m, MessageHdr *msg, int msgSize) {
  * DESCRIPTION: handle function for Receiving Gossiping Message
  */
 void MP1Node::handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize) {
-
     vector<MemberListEntry> mle;
     vector<MemberListEntry> sent;
     char *data = (char *)msg + sizeof(MessageHdr);
@@ -392,7 +388,7 @@ void MP1Node::handleRecvGossipMsg(Member *m, MessageHdr *msg, int msgSize) {
     for (auto s : sent) {
         exclude[getIdAndPortString(s.getid(), s.getport())] = true;
     }
-    
+
     gossip(exclude, msg->timestamp);
 
     return;
@@ -524,7 +520,8 @@ void MP1Node::sendMsg(Address *addr, MsgTypes ms) {
     msg.msgType = ms;
     msg.timestamp = par->getcurrtime();
 
-    emulNet->ENsend(&memberNode->addr, addr, (char *)(&msg), sizeof(MessageHdr));
+    emulNet->ENsend(&memberNode->addr, addr, (char *)(&msg),
+                    sizeof(MessageHdr));
 }
 
 /**
@@ -532,11 +529,11 @@ void MP1Node::sendMsg(Address *addr, MsgTypes ms) {
  *
  * DESCRIPTION: send message to the address for gossip
  */
-void MP1Node::sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent, long timestamp) {
+void MP1Node::sendMsg(Address *addr, MsgTypes ms, vector<MemberListEntry> &sent,
+                      long timestamp) {
     // gossip msg includes member list and sent list
     // MessageHdr + addrs + sent
-    size_t dataSize =
-        DATA_FRAME_SIZE * memberNode->memberList.size();
+    size_t dataSize = DATA_FRAME_SIZE * memberNode->memberList.size();
 
     size_t sentSize = DATA_FRAME_SIZE * sent.size();
 
@@ -571,10 +568,9 @@ string MP1Node::getIdAndPortString(int id, short port) {
  * DESCRIPTION: load id and port from idAndPort string
  */
 void MP1Node::loadIdAndPortFromString(string idAndPort, int &id, short &port) {
-
     auto id_pos = idAndPort.find(":");
     auto id_string = idAndPort.substr(0, id_pos);
-    auto port_string = idAndPort.substr(id_pos+1);
+    auto port_string = idAndPort.substr(id_pos + 1);
 
     id = stoi(id_string);
     port = stoi(port_string);
@@ -587,7 +583,8 @@ void MP1Node::loadIdAndPortFromString(string idAndPort, int &id, short &port) {
  *
  * DESCRIPTION: convert adresses into byte array
  */
-void MP1Node::marshall(char *_dest, vector<MemberListEntry> &m, vector<MemberListEntry> &sent) {
+void MP1Node::marshall(char *_dest, vector<MemberListEntry> &m,
+                       vector<MemberListEntry> &sent) {
     auto ind = 0;
     Address a = Address();
     memset(&a, 0, sizeof(Address));
@@ -628,7 +625,8 @@ void MP1Node::marshall(char *_dest, vector<MemberListEntry> &m, vector<MemberLis
  * DESCRIPTION: convert byte array into addresses
  */
 void MP1Node::unmarshall(char *_src, size_t dataSize, size_t sentSize,
-                         vector<MemberListEntry> &m, vector<MemberListEntry> &sent) {
+                         vector<MemberListEntry> &m,
+                         vector<MemberListEntry> &sent) {
     size_t mleSize = dataSize / DATA_FRAME_SIZE;
     long heartbeat;
 
@@ -657,8 +655,9 @@ void MP1Node::unmarshall(char *_src, size_t dataSize, size_t sentSize,
         memcpy(&heartbeat, _src, sizeof(long));
         _src += sizeof(long);
 
-        sent.push_back(MemberListEntry(getIdFromAddr(addr), getPortFromAddr(addr),
-                                    heartbeat, par->getcurrtime()));
+        sent.push_back(MemberListEntry(getIdFromAddr(addr),
+                                       getPortFromAddr(addr), heartbeat,
+                                       par->getcurrtime()));
 
         // for `,`
         ++_src;

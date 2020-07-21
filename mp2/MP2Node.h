@@ -10,6 +10,7 @@
 /**
  * Header files
  */
+#include <unordered_map>
 #include <utility>
 
 #include "EmulNet.h"
@@ -56,6 +57,10 @@ class MP2Node {
     void sendMsg(const string &&, const string &&, MessageType);
     void replyMsg(Message &&, bool);
     void replyMsg(Message &&, string &&);
+    void logSuccess(Message &&);
+    void logFail(Message &&);
+
+    unordered_map<int, vector<Message>> transactionTable;
 
    public:
     MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log,

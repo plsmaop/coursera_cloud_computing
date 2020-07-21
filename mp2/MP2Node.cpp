@@ -130,7 +130,9 @@ void MP2Node::sendMsg(const string &&key, const string &&value,
         return;
     }
 
-    Message m(g_transID++, memberNode->addr, type, key, value);
+    transactionTable.insert({++g_transID, vector<Message>{}});
+
+    Message m(g_transID, memberNode->addr, type, key, value);
     sendWithReplicaType(forward<Address>(replicas[0].nodeAddress),
                         forward<Message>(m), PRIMARY);
     sendWithReplicaType(forward<Address>(replicas[1].nodeAddress),
@@ -148,7 +150,10 @@ void MP2Node::sendMsg(const string &&key, const string &&value,
  * 				2) Reply message
  */
 void MP2Node::replyMsg(Message &&oldMsg, bool isSuc) {
-    Message m(oldMsg.transID, memberNode->addr, REPLY, isSuc);
+    Message m(oldMsg);
+    m.fromAddr = memberNode->addr;
+    m.type = REPLY;
+    m.success = isSuc;
     sendWithReplicaType(forward<Address>(oldMsg.fromAddr), forward<Message>(m),
                         oldMsg.replica);
 };
@@ -162,7 +167,10 @@ void MP2Node::replyMsg(Message &&oldMsg, bool isSuc) {
  * 				2) Reply message
  */
 void MP2Node::replyMsg(Message &&oldMsg, string &&value) {
-    Message m(oldMsg.transID, memberNode->addr, value);
+    Message m(oldMsg);
+    m.fromAddr = memberNode->addr;
+    m.type = READREPLY;
+    m.value = value;
     sendWithReplicaType(forward<Address>(oldMsg.fromAddr), forward<Message>(m),
                         oldMsg.replica);
 };
@@ -303,6 +311,59 @@ bool MP2Node::deletekey(string key) {
 }
 
 /**
+ * FUNCTION NAME: logSuccess
+ *
+ * DESCRIPTION: log helper function
+ * 				This function does the following:
+ * 				1) log success msg according to msg type
+ * failure
+ */
+void MP2Node::logSuccess(Message &&msg) {
+    switch (msg.type) {
+        case CREATE:
+            log->logCreateSuccess(&memberNode->addr, true, msg.transID, msg.key,
+                                  msg.value);
+            break;
+        case UPDATE:
+            log->logUpdateSuccess(&memberNode->addr, true, msg.transID, msg.key,
+                                  msg.value);
+            break;
+        case DELETE:
+            log->logDeleteSuccess(&memberNode->addr, true, msg.transID,
+                                  msg.key);
+            break;
+        default:
+            break;
+    }
+}
+
+/**
+ * FUNCTION NAME: logFail
+ *
+ * DESCRIPTION: log helper function
+ * 				This function does the following:
+ * 				1) log fail msg according to msg type
+ * failure
+ */
+void MP2Node::logFail(Message &&msg) {
+    switch (msg.type) {
+        case CREATE:
+            log->logCreateFail(&memberNode->addr, true, msg.transID, msg.key,
+                               msg.value);
+            break;
+        case UPDATE:
+            log->logUpdateFail(&memberNode->addr, true, msg.transID, msg.key,
+                               msg.value);
+            break;
+        case DELETE:
+            log->logDeleteFail(&memberNode->addr, true, msg.transID, msg.key);
+            break;
+        default:
+            break;
+    }
+}
+
+/**
  * FUNCTION NAME: checkMessages
  *
  * DESCRIPTION: This function is the message handler of this node.
@@ -337,7 +398,6 @@ void MP2Node::checkMessages() {
          * Handle the message types here
          */
 
-        cout << message << endl;
         Message m(message);
         switch (m.type) {
             case CREATE: {
@@ -391,8 +451,56 @@ void MP2Node::checkMessages() {
                 break;
             }
             case REPLY: {
+                auto iter = transactionTable.find(m.transID);
+
+                // handled, drop msg
+                if (iter == transactionTable.end()) break;
+                iter->second.push_back(m);
+
+                if (iter->second.size() >= 2) {
+                    // handle quorum
+                    int quorum = 0;
+                    for (const auto &msg : iter->second) {
+                        if (msg.success) ++quorum;
+                    }
+
+                    if (quorum >= 2) {
+                        // success
+                        transactionTable.erase(m.transID);
+                        logSuccess(forward<Message>(m));
+                    } else if (iter->second.size() == 3) {
+                        // fail
+                        transactionTable.erase(m.transID);
+                        logFail(forward<Message>(m));
+                    }
+                }
             }
             case READREPLY: {
+                auto iter = transactionTable.find(m.transID);
+
+                // handled, drop msg
+                if (iter == transactionTable.end()) break;
+                iter->second.push_back(m);
+
+                if (iter->second.size() >= 2) {
+                    // handle quorum
+                    int quorum = 0;
+                    for (const auto &msg : iter->second) {
+                        if (msg.success) ++quorum;
+                    }
+
+                    if (quorum >= 2) {
+                        // success
+                        transactionTable.erase(m.transID);
+                        log->logReadSuccess(&memberNode->addr, true, m.transID,
+                                            m.key, m.value);
+                    } else if (iter->second.size() == 3) {
+                        // fail
+                        transactionTable.erase(m.transID);
+                        log->logReadFail(&memberNode->addr, true, m.transID,
+                                         m.key);
+                    }
+                }
             }
             default:
                 break;
