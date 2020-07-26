@@ -58,10 +58,23 @@ void MP2Node::updateRing() {
      */
     // Run stabilization protocol if the hash table size is greater than zero
     // and if there has been a changed in the ring
-    if (curMemList.size() != ring.size()) {
+    if (ring.size() != 0) {
+        stabilizationProtocol();
     }
 
     ring = std::move(curMemList);
+    ringToTable();
+
+    // set neighbors
+    auto iter = find_if(ring.begin(), ring.end(), [this](Node &n) -> bool {
+        return n.nodeAddress == this->memberNode->addr;
+    });
+    auto index = distance(ring.begin(), iter);
+    hasMyReplicas = vector<Node>{ring[(index + 1) % ring.size()],
+                                 ring[(index + 2) % ring.size()]};
+    haveReplicasOf =
+        vector<Node>{ring[(index + ring.size() - 1) % ring.size()],
+                     ring[(index + ring.size() - 2) % ring.size()]};
 }
 
 /**
@@ -112,7 +125,8 @@ size_t MP2Node::hashFunction(string key) {
  */
 void MP2Node::sendWithReplicaType(Address &&addr, Message &&m, ReplicaType r) {
     m.replica = r;
-    emulNet->ENsend(&memberNode->addr, &addr, m.toString());
+    auto msgString = m.toString();
+    emulNet->ENsend(&memberNode->addr, &addr, msgString);
 };
 
 /**
@@ -126,19 +140,15 @@ void MP2Node::sendWithReplicaType(Address &&addr, Message &&m, ReplicaType r) {
 void MP2Node::sendMsg(const string &&key, const string &&value,
                       MessageType type) {
     auto replicas = findNodes(key);
-    if (replicas.size() < 3) {
-        return;
+
+    Message m(++g_transID, memberNode->addr, type, key, value);
+    transactionTable.insert({g_transID, make_pair(m, vector<Message>{})});
+
+    for (int i = 0; i < replicas.size(); ++i) {
+        sendWithReplicaType(forward<Address>(replicas[i].nodeAddress),
+                            forward<Message>(m),
+                            static_cast<ReplicaType>(PRIMARY + i));
     }
-
-    transactionTable.insert({++g_transID, vector<Message>{}});
-
-    Message m(g_transID, memberNode->addr, type, key, value);
-    sendWithReplicaType(forward<Address>(replicas[0].nodeAddress),
-                        forward<Message>(m), PRIMARY);
-    sendWithReplicaType(forward<Address>(replicas[1].nodeAddress),
-                        forward<Message>(m), SECONDARY);
-    sendWithReplicaType(forward<Address>(replicas[2].nodeAddress),
-                        forward<Message>(m), TERTIARY);
 };
 
 /**
@@ -402,6 +412,7 @@ void MP2Node::checkMessages() {
         switch (m.type) {
             case CREATE: {
                 auto isSuc = createKeyValue(m.key, m.value, m.replica);
+                if (m.transID == 0) break;
                 if (isSuc) {
                     log->logCreateSuccess(&memberNode->addr, false, m.transID,
                                           m.key, m.value);
@@ -415,6 +426,7 @@ void MP2Node::checkMessages() {
             }
             case READ: {
                 auto value = readKey(m.key);
+                if (m.transID == 0) break;
                 if (value.length() > 0) {
                     log->logReadSuccess(&memberNode->addr, false, m.transID,
                                         m.key, value);
@@ -428,6 +440,7 @@ void MP2Node::checkMessages() {
             }
             case UPDATE: {
                 auto isSuc = updateKeyValue(m.key, m.value, m.replica);
+                if (m.transID == 0) break;
                 if (isSuc) {
                     log->logUpdateSuccess(&memberNode->addr, false, m.transID,
                                           m.key, m.value);
@@ -440,6 +453,7 @@ void MP2Node::checkMessages() {
             }
             case DELETE: {
                 auto isSuc = deletekey(m.key);
+                if (m.transID == 0) break;
                 if (isSuc) {
                     log->logDeleteSuccess(&memberNode->addr, false, m.transID,
                                           m.key);
@@ -455,52 +469,54 @@ void MP2Node::checkMessages() {
 
                 // handled, drop msg
                 if (iter == transactionTable.end()) break;
-                iter->second.push_back(m);
+                iter->second.second.push_back(m);
 
-                if (iter->second.size() >= 2) {
+                if (iter->second.second.size() >= 2) {
                     // handle quorum
                     int quorum = 0;
-                    for (const auto &msg : iter->second) {
+                    for (const auto &msg : iter->second.second) {
                         if (msg.success) ++quorum;
                     }
 
                     if (quorum >= 2) {
                         // success
                         transactionTable.erase(m.transID);
-                        logSuccess(forward<Message>(m));
-                    } else if (iter->second.size() == 3) {
+                        logSuccess(forward<Message>(iter->second.first));
+                    } else if (iter->second.second.size() == 3) {
                         // fail
                         transactionTable.erase(m.transID);
-                        logFail(forward<Message>(m));
+                        logFail(forward<Message>(iter->second.first));
                     }
                 }
+                break;
             }
             case READREPLY: {
                 auto iter = transactionTable.find(m.transID);
 
                 // handled, drop msg
                 if (iter == transactionTable.end()) break;
-                iter->second.push_back(m);
+                iter->second.second.push_back(m);
 
-                if (iter->second.size() >= 2) {
+                if (iter->second.second.size() >= 2) {
                     // handle quorum
                     int quorum = 0;
-                    for (const auto &msg : iter->second) {
-                        if (msg.success) ++quorum;
+                    for (const auto &msg : iter->second.second) {
+                        if (msg.value.length() > 0) ++quorum;
                     }
 
                     if (quorum >= 2) {
                         // success
                         transactionTable.erase(m.transID);
                         log->logReadSuccess(&memberNode->addr, true, m.transID,
-                                            m.key, m.value);
-                    } else if (iter->second.size() == 3) {
+                                            iter->second.first.key, m.value);
+                    } else if (iter->second.second.size() == 3) {
                         // fail
                         transactionTable.erase(m.transID);
                         log->logReadFail(&memberNode->addr, true, m.transID,
-                                         m.key);
+                                         iter->second.first.key);
                     }
                 }
+                break;
             }
             default:
                 break;
@@ -569,6 +585,22 @@ int MP2Node::enqueueWrapper(void *env, char *buff, int size) {
     Queue q;
     return q.enqueue((queue<q_elt> *)env, (void *)buff, size);
 }
+
+/**
+ * FUNCTION NAME: ringToTable
+ *
+ * DESCRIPTION: This function turns a ring into node table
+ */
+void MP2Node::ringToTable() {
+    /*
+     * Implement this
+     */
+    nodeTable.clear();
+    for (int i = 0; i < ring.size(); ++i) {
+        nodeTable[ring[i].getHashCode()] = i;
+    }
+}
+
 /**
  * FUNCTION NAME: stabilizationProtocol
  *
@@ -583,4 +615,30 @@ void MP2Node::stabilizationProtocol() {
     /*
      * Implement this
      */
+    for (const auto &pair : ht->hashTable) {
+        Entry e(pair.second);
+        vector<Node> nodes = findNodes(pair.first);
+        if (e.replica == PRIMARY) {
+            // primary, handle stabalization
+            for (int i = 0; i < nodes.size(); ++i) {
+                if (nodes[i].getHashCode() != hasMyReplicas[i].getHashCode()) {
+                    Message replicaMsg(0, memberNode->addr, CREATE, pair.first,
+                                       e.value);
+
+                    sendWithReplicaType(
+                        forward<Address>(*nodes[i].getAddress()),
+                        forward<Message>(replicaMsg),
+                        static_cast<ReplicaType>(PRIMARY + i + 1));
+
+                    Message delMsg(0, memberNode->addr, DELETE, pair.first,
+                                   e.value);
+
+                    sendWithReplicaType(
+                        forward<Address>(*hasMyReplicas[i].getAddress()),
+                        forward<Message>(delMsg),
+                        static_cast<ReplicaType>(PRIMARY + i + 1));
+                }
+            }
+        }
+    }
 }

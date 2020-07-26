@@ -59,8 +59,11 @@ class MP2Node {
     void replyMsg(Message &&, string &&);
     void logSuccess(Message &&);
     void logFail(Message &&);
+    void ringToTable();
 
-    unordered_map<int, vector<Message>> transactionTable;
+    unordered_map<int, pair<Message, vector<Message>>> transactionTable;
+    // rhash code to ing index
+    unordered_map<size_t, int> nodeTable;
 
    public:
     MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log,
