@@ -412,7 +412,7 @@ void MP2Node::checkMessages() {
         switch (m.type) {
             case CREATE: {
                 auto isSuc = createKeyValue(m.key, m.value, m.replica);
-                if (m.transID == 0) break;
+                if (m.transID == -1) break;
                 if (isSuc) {
                     log->logCreateSuccess(&memberNode->addr, false, m.transID,
                                           m.key, m.value);
@@ -426,8 +426,10 @@ void MP2Node::checkMessages() {
             }
             case READ: {
                 auto value = readKey(m.key);
-                if (m.transID == 0) break;
+                if (m.transID == -1) break;
                 if (value.length() > 0) {
+                    Entry e(value);
+                    value = e.value;
                     log->logReadSuccess(&memberNode->addr, false, m.transID,
                                         m.key, value);
                 } else {
@@ -440,7 +442,7 @@ void MP2Node::checkMessages() {
             }
             case UPDATE: {
                 auto isSuc = updateKeyValue(m.key, m.value, m.replica);
-                if (m.transID == 0) break;
+                if (m.transID == -1) break;
                 if (isSuc) {
                     log->logUpdateSuccess(&memberNode->addr, false, m.transID,
                                           m.key, m.value);
@@ -453,7 +455,7 @@ void MP2Node::checkMessages() {
             }
             case DELETE: {
                 auto isSuc = deletekey(m.key);
-                if (m.transID == 0) break;
+                if (m.transID == -1) break;
                 if (isSuc) {
                     log->logDeleteSuccess(&memberNode->addr, false, m.transID,
                                           m.key);
@@ -615,14 +617,14 @@ void MP2Node::stabilizationProtocol() {
     /*
      * Implement this
      */
-    for (const auto &pair : ht->hashTable) {
+    /* for (const auto &pair : ht->hashTable) {
         Entry e(pair.second);
         vector<Node> nodes = findNodes(pair.first);
         if (e.replica == PRIMARY) {
             // primary, handle stabalization
             for (int i = 0; i < nodes.size(); ++i) {
                 if (nodes[i].getHashCode() != hasMyReplicas[i].getHashCode()) {
-                    Message replicaMsg(0, memberNode->addr, CREATE, pair.first,
+                    Message replicaMsg(-1, memberNode->addr, CREATE, pair.first,
                                        e.value);
 
                     sendWithReplicaType(
@@ -630,7 +632,7 @@ void MP2Node::stabilizationProtocol() {
                         forward<Message>(replicaMsg),
                         static_cast<ReplicaType>(PRIMARY + i + 1));
 
-                    Message delMsg(0, memberNode->addr, DELETE, pair.first,
+                    Message delMsg(-1, memberNode->addr, DELETE, pair.first,
                                    e.value);
 
                     sendWithReplicaType(
@@ -640,5 +642,5 @@ void MP2Node::stabilizationProtocol() {
                 }
             }
         }
-    }
+    } */
 }
