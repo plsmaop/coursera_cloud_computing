@@ -67,6 +67,8 @@ class MP2Node {
     // rhash code to ing index
     unordered_map<size_t, int> nodeTable;
 
+    unordered_map<int, vector<Node>> txToNodeTable;
+
    public:
     MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log,
             Address *addressOfMember);

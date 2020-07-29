@@ -144,6 +144,7 @@ void MP2Node::sendMsg(const string &&key, const string &&value,
 
     Message m(++g_transID, memberNode->addr, type, key, value);
     transactionTable.insert({g_transID, make_pair(m, vector<Message>{})});
+    txToNodeTable[g_transID] = replicas;
 
     for (int i = 0; i < replicas.size(); ++i) {
         sendWithReplicaType(forward<Address>(replicas[i].nodeAddress),
@@ -484,10 +485,12 @@ void MP2Node::checkMessages() {
                     if (quorum >= 2) {
                         // success
                         transactionTable.erase(m.transID);
+                        txToNodeTable.erase(m.transID);
                         logSuccess(forward<Message>(iter->second.first));
                     } else if (iter->second.second.size() == 3) {
                         // fail
                         transactionTable.erase(m.transID);
+                        txToNodeTable.erase(m.transID);
                         logFail(forward<Message>(iter->second.first));
                     }
                 }
@@ -510,11 +513,13 @@ void MP2Node::checkMessages() {
                     if (quorum >= 2) {
                         // success
                         transactionTable.erase(m.transID);
+                        txToNodeTable.erase(m.transID);
                         log->logReadSuccess(&memberNode->addr, true, m.transID,
                                             iter->second.first.key, m.value);
                     } else if (iter->second.second.size() == 3) {
                         // fail
                         transactionTable.erase(m.transID);
+                        txToNodeTable.erase(m.transID);
                         log->logReadFail(&memberNode->addr, true, m.transID,
                                          iter->second.first.key);
                     }
@@ -530,6 +535,72 @@ void MP2Node::checkMessages() {
      * This function should also ensure all READ and UPDATE operation
      * get QUORUM replies
      */
+    vector<int> txToRemove;
+    for (auto &tx : transactionTable) {
+        auto txID = tx.first;
+        auto m = tx.second.first;
+        auto replicas = txToNodeTable[txID];
+        for (auto &n : replicas) {
+            auto it = nodeTable.find(n.getHashCode());
+            if (it == nodeTable.end()) {
+                auto isRead = m.type == READ;
+
+                Message failMsg(m);
+                failMsg.success = false;
+                failMsg.value = "";
+                failMsg.type = isRead ? READREPLY : REPLY;
+                tx.second.second.push_back(failMsg);
+
+                if (tx.second.second.size() < 2) continue;
+                if (isRead) {
+                    // handle quorum
+                    int quorum = 0;
+                    string value = "";
+                    for (const auto &msg : tx.second.second) {
+                        if (msg.value.length() > 0) {
+                            ++quorum;
+                            value = msg.value;
+                        }
+                    }
+
+                    if (quorum >= 2) {
+                        // success
+                        txToRemove.push_back(txID);
+                        log->logReadSuccess(&memberNode->addr, true, m.transID,
+                                            m.key, value);
+                    } else if (tx.second.second.size() == 3) {
+                        // fail
+                        txToRemove.push_back(txID);
+                        log->logReadFail(&memberNode->addr, true, m.transID,
+                                         m.key);
+                    }
+                    break;
+                } else {
+                    // handle quorum
+                    int quorum = 0;
+                    for (const auto &msg : tx.second.second) {
+                        if (msg.success) ++quorum;
+                    }
+
+                    if (quorum >= 2) {
+                        // success
+                        txToRemove.push_back(txID);
+                        logSuccess(forward<Message>(m));
+                    } else if (tx.second.second.size() == 3) {
+                        // fail
+                        txToRemove.push_back(txID);
+                        logFail(forward<Message>(m));
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    for (auto &txID : txToRemove) {
+        txToNodeTable.erase(txID);
+        transactionTable.erase(txID);
+    }
 }
 
 /**
