@@ -52,6 +52,8 @@ class MP2Node {
     // Object of Log
     Log *log;
 
+    Node selfNode;
+
     // helper
     void sendWithReplicaType(Address &&, Message &&, ReplicaType);
     void sendMsg(const string &&, const string &&, MessageType);

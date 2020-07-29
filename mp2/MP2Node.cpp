@@ -16,6 +16,7 @@ MP2Node::MP2Node(Member *memberNode, Params *par, EmulNet *emulNet, Log *log,
     this->log = log;
     ht = new HashTable();
     this->memberNode->addr = *address;
+    selfNode = Node(*address);
 }
 
 /**
@@ -58,12 +59,12 @@ void MP2Node::updateRing() {
      */
     // Run stabilization protocol if the hash table size is greater than zero
     // and if there has been a changed in the ring
+    ring = std::move(curMemList);
+    ringToTable();
+
     if (ring.size() != 0) {
         stabilizationProtocol();
     }
-
-    ring = std::move(curMemList);
-    ringToTable();
 
     // set neighbors
     auto iter = find_if(ring.begin(), ring.end(), [this](Node &n) -> bool {
@@ -617,13 +618,17 @@ void MP2Node::stabilizationProtocol() {
     /*
      * Implement this
      */
-    /* for (const auto &pair : ht->hashTable) {
+    for (const auto &pair : ht->hashTable) {
         Entry e(pair.second);
         vector<Node> nodes = findNodes(pair.first);
         if (e.replica == PRIMARY) {
             // primary, handle stabalization
+            auto oldReplicaNodes = vector<Node>{selfNode};
+            oldReplicaNodes.insert(oldReplicaNodes.end(), hasMyReplicas.begin(),
+                                   hasMyReplicas.end());
             for (int i = 0; i < nodes.size(); ++i) {
-                if (nodes[i].getHashCode() != hasMyReplicas[i].getHashCode()) {
+                if (nodes[i].getHashCode() !=
+                    oldReplicaNodes[i].getHashCode()) {
                     Message replicaMsg(-1, memberNode->addr, CREATE, pair.first,
                                        e.value);
 
@@ -642,5 +647,5 @@ void MP2Node::stabilizationProtocol() {
                 }
             }
         }
-    } */
+    }
 }
